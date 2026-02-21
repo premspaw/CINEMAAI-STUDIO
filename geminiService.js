@@ -70,51 +70,29 @@ export const generateCharacterImage = async (
 ) => {
     return withRetry(async () => {
         try {
-            const apiKey = (typeof process !== 'undefined' ? process.env.VITE_GOOGLE_API_KEY || process.env.GOOGLE_API_KEY : null) ||
-                (typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_GOOGLE_API_KEY : null) ||
-                '';
-
-            if (!apiKey) throw new Error("No API Key found for generation");
-
-            const bibleContext = formatBibleContext(bible);
-            const finalPrompt = bibleContext + prompt;
-
-            // Prepare instances for Imagen 4.0 :predict
-            const instances = [{ prompt: finalPrompt }];
-
-            // If we have references, pass them to Imagen 4.0 for consistency (Image-to-Image / Reference)
-            if (references && references.length > 0) {
-                const ref = references[0]; // Imagen usually takes 1 primary reference in many SDK setups
-                if (ref && ref.includes('base64,')) {
-                    const data = ref.split(',')[1];
-                    instances[0].image = { bytesBase64Encoded: data };
-                }
-            }
-
-            const modelName = 'imagen-4.0-generate-001';
-            const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:predict?key=${apiKey}`;
-
-            const response = await fetch(endpoint, {
+            const response = await fetch('http://localhost:3001/api/generate-image', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    instances,
-                    parameters: {
-                        sampleCount: 1,
-                        aspectRatio: aspectRatio,
-                        outputMimeType: "image/png"
-                    }
+                    model: 'nano-banana-pro',
+                    prompt,
+                    references,
+                    aspect_ratio: aspectRatio,
+                    quality: resolution,
+                    bible
                 })
             });
 
-            const result = await response.json();
-            if (result.error) throw new Error(result.error.message);
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.message || 'Generation failed');
+            }
 
-            const base64Image = result.predictions?.[0]?.bytesBase64Encoded;
-            return base64Image ? `data:image/png;base64,${base64Image}` : null;
-        } catch (err) {
-            console.error("Character generation failed:", err);
-            return null;
+            const data = await response.json();
+            return data.url;
+        } catch (error) {
+            console.error('Image Gen Error:', error);
+            throw error;
         }
     });
 };

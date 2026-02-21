@@ -14,7 +14,7 @@ const MOTION_PRESETS = [
 ];
 
 export default memo(({ id, data }) => {
-    const updateNodeData = useAppStore(s => s.updateNodeData);
+    const { updateNodeData, setFocusMode } = useAppStore();
     const [isGenerating, setIsGenerating] = useState(false);
     const [selectedPreset, setSelectedPreset] = useState(MOTION_PRESETS[0]);
     const [customMotion, setCustomMotion] = useState('');
@@ -159,14 +159,25 @@ export default memo(({ id, data }) => {
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: 'auto' }}
                         exit={{ opacity: 0, height: 0 }}
-                        className="mt-3"
+                        className="mt-3 relative group/vid"
                     >
-                        <video
-                            src={data.videoUrl}
-                            controls
-                            className="w-full rounded-lg border border-cyan-500/20"
-                            style={{ maxHeight: '150px' }}
-                        />
+                        <motion.div layoutId={`media-${id}`}>
+                            <video
+                                src={data.videoUrl}
+                                loop muted autoPlay
+                                className="w-full rounded-lg border border-cyan-500/20"
+                                style={{ maxHeight: '150px' }}
+                            />
+                        </motion.div>
+
+                        <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover/vid:opacity-100 transition-opacity flex justify-end">
+                            <button
+                                onClick={() => setFocusMode(id)}
+                                className="p-1.5 bg-cyan-500 text-black rounded-lg shadow-xl hover:scale-110 active:scale-95 transition-all"
+                            >
+                                <Play size={10} className="fill-black" />
+                            </button>
+                        </div>
                     </motion.div>
                 )}
             </AnimatePresence>

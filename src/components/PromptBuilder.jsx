@@ -13,7 +13,7 @@ const NODE_CONFIG = {
     video: { icon: Film, color: 'cyan', label: 'VIDEO', fields: ['label'] },
     ugcPipeline: { icon: Layers, color: 'orange', label: 'UGC', fields: ['hookScript', 'niche', 'hookStyle'] },
     wardrobe: { icon: Camera, color: 'rose', label: 'WARDROBE', fields: ['outfitDescription'] },
-    product: { icon: Layers, color: 'amber', label: 'PRODUCT', fields: ['productDescription'] },
+    product: { icon: Layers, color: 'amber', label: 'PRODUCT_SCAN', fields: ['productDescription'] },
     autoStoryboard: { icon: Film, color: 'purple', label: 'STORYBOARD', fields: ['storyboardPrompt'] },
     veoI2V: { icon: Zap, color: 'cyan', label: 'VEO_I2V', fields: ['motionPrompt'] },
 };
@@ -87,6 +87,11 @@ export default function PromptBuilder() {
         }
 
         connectedNodes.forEach(node => {
+            // Deduplicate: If this node is the source of global state, don't repeat it
+            if (node.type === 'product' && currentProduct?.description) return;
+            if (node.type === 'influencer' && activeCharacter) return;
+            if (node.type === 'identity' && activeCharacter) return;
+
             const config = NODE_CONFIG[node.type];
             if (!config) return;
 
@@ -94,7 +99,9 @@ export default function PromptBuilder() {
             config.fields.forEach(field => {
                 const val = node.data?.[field];
                 if (val && val !== '') {
-                    parts.push(`${field.toUpperCase()}: ${val}`);
+                    // Cleaner labels for the UI
+                    const fieldLabel = field.replace('product', '').replace('Description', '').replace('Prompt', '').toUpperCase() || 'DATA';
+                    parts.push(`${fieldLabel}: ${val}`);
                 }
             });
 
@@ -165,10 +172,21 @@ export default function PromptBuilder() {
                             })}
                         </div>
 
-                        {/* Full Prompt Preview */}
-                        <div className="px-4 py-2 border-t border-white/5">
-                            <p className="text-[7px] text-white/20 font-mono leading-relaxed">
-                                {assembledPrompt.map(s => s.content).join(' → ')}
+                        {/* Full Prompt Preview (Natural Language) */}
+                        <div className="px-4 py-3 border-t border-white/5 bg-black/20">
+                            <span className="text-[7px] font-black text-white/20 uppercase tracking-widest block mb-1">BRAIN_TRANSLATION_PREVIEW</span>
+                            <p className="text-[10px] text-[#bef264]/90 font-mono leading-relaxed italic">
+                                "{assembledPrompt.length > 0 ? (
+                                    (() => {
+                                        const char = activeCharacter?.name || 'The subject';
+                                        const prodNode = connectedNodes.find(n => n.type === 'product');
+                                        const productDesc = currentProduct?.description || prodNode?.data?.productDescription || '';
+                                        const cleanProd = productDesc.split(',')[0].replace(/showcased on a teal mannequin/i, '').trim();
+                                        const style = activeCharacter?.visualStyle || 'Cinematic';
+
+                                        return `${style} shot of ${char} gracefully wearing ${cleanProd || 'the item'}.`;
+                                    })()
+                                ) : 'Awaiting neural assembly...'}"
                             </p>
                         </div>
                     </motion.div>

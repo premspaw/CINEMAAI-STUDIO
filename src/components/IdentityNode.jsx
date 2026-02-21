@@ -3,7 +3,10 @@ import { Handle, Position } from 'reactflow';
 import { motion } from 'framer-motion';
 import { Maximize2, Loader2, Search, X, Zap, ScanLine } from 'lucide-react';
 
+import { useAppStore } from '../store';
+
 export default memo(({ id, data }) => {
+    const { setFocusMode } = useAppStore();
     return (
         <div className="relative group">
             <Handle type="target" position={Position.Top} className="opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -72,7 +75,7 @@ export default memo(({ id, data }) => {
                 ) : (
                     <div className="w-full h-full relative">
                         <motion.img
-                            layoutId={`node-image-${id}`}
+                            layoutId={`media-${id}`}
                             src={data.image}
                             alt={data.label}
                             className="w-full h-full object-cover grayscale brightness-[0.4] group-hover:grayscale-0 group-hover:brightness-100 transition-all duration-1000 ease-out"
@@ -111,7 +114,7 @@ export default memo(({ id, data }) => {
                             )}
 
                             <button
-                                onClick={() => data.onFocus(id)}
+                                onClick={() => setFocusMode(id)}
                                 className="p-3 bg-[#bef264] text-black rounded-xl shadow-xl hover:scale-110 active:scale-90 transition-all mt-2"
                                 title="Focus View"
                             >

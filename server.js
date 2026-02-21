@@ -371,11 +371,11 @@ async function handleGoogle(req, res) {
             // Image Generation uses the Native generateContent API (Nano Banana)
             // Mapping frontend IDs to official model names
             const modelMapping = {
-                'nano-banana': 'gemini-2.5-flash-image',
-                'nano-banana-pro': 'gemini-3-pro-image-preview'
+                'nano-banana': 'imagen-4.0-generate-001',
+                'nano-banana-pro': 'imagen-4.0-ultra-generate-001'
             };
 
-            const modelName = modelMapping[model] || 'gemini-2.5-flash-image';
+            const modelName = modelMapping[model] || 'imagen-4.0-generate-001';
 
             // Pro Features: 4K support and Search Grounding
             const { google_search, quality } = req.body;
@@ -403,11 +403,37 @@ async function handleGoogle(req, res) {
                 biblePrefix += "INSTRUCTIONS: Maintain consistency with the above universe context.\n\n";
             }
 
+            const { images = [], references = [] } = req.body;
+            const inputImages = [...images, ...references].filter(Boolean);
+
+            const contentParts = await Promise.all(inputImages.map(async (img) => {
+                try {
+                    if (img.startsWith('http')) {
+                        const imageResp = await fetch(img);
+                        const buffer = await imageResp.arrayBuffer();
+                        return {
+                            inlineData: {
+                                mimeType: "image/png",
+                                data: Buffer.from(buffer).toString('base64')
+                            }
+                        };
+                    } else {
+                        const data = img.includes('base64,') ? img.split('base64,')[1] : img;
+                        return { inlineData: { mimeType: "image/png", data: data } };
+                    }
+                } catch (e) {
+                    console.error("Failed to process image reference:", e);
+                    return null;
+                }
+            })).then(parts => parts.filter(Boolean));
+
             const finalPrompt = biblePrefix + cleanPrompt;
-            console.log(`Calling Google ${modelName} (${resolution}, Search: ${!!google_search}):`, finalPrompt.substring(0, 100));
+            contentParts.push({ text: finalPrompt });
+
+            console.log(`Calling Google ${modelName} (${resolution}, Search: ${!!google_search}, Images: ${inputImages.length}):`, finalPrompt.substring(0, 100));
 
             const payload = {
-                contents: [{ parts: [{ text: finalPrompt }] }],
+                contents: [{ parts: contentParts }],
                 generationConfig: {
                     responseModalities: ["TEXT", "IMAGE"],
                     imageConfig: {
@@ -1173,12 +1199,18 @@ app.post('/api/ugc/auto-storyboard', async (req, res) => {
 
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
-            contents: `You are a professional UGC video director. Break this concept into exactly ${sceneCount} scenes for a ${duration || 30}-second vertical video.
+            contents: `You are an expert AI Video Director. Combine the following Identity and Product into a photorealistic, natural language 9:16 vertical video storyboard with exactly ${sceneCount} scenes.
 
-CONCEPT: "${prompt}"
-CHARACTER: ${characterName || 'the influencer'}
-${wardrobe ? `WARDROBE (MUST be consistent in ALL scenes): ${wardrobe}` : ''}
-${product ? `PRODUCT (include in at least 2 scenes): ${product}` : ''}
+STORY CONCEPT: "${prompt}"
+IDENTITY: ${characterName || 'the influencer'}
+${wardrobe ? `WARDROBE: ${wardrobe}` : ''}
+${product ? `PRODUCT: ${product}` : ''}
+
+CRITICAL INSTRUCTIONS:
+1. PROMPT TRANSLATION: Do NOT use UI tags like "SUBJECT:", "PRODUCT:", arrows "→", or pipes "|". Write in fluid, descriptive natural language sentences.
+2. INTERACTION: The subject (${characterName}) must be WEARING, HOLDING, or ACTIVELY INTERACTING with the product. 
+3. NO MANNEQUINS: If the product description mentions a mannequin or display stand, REMOVE it. The character should be the one wearing it.
+4. CONSISTENCY: Ensure the character's facial features and wardrobe stay perfectly consistent across all ${sceneCount} prompts.
 
 Generate JSON:
 {
@@ -1186,24 +1218,16 @@ Generate JSON:
     {
       "index": 0,
       "timeRange": "0s-5s",
-      "shotType": "CLOSE_UP | MEDIUM | WIDE | ACTION | B_ROLL",
-      "action": "Brief description of what happens",
-      "hasProduct": true/false,
-      "prompt": "Full detailed image generation prompt for this scene including character, wardrobe, setting, camera angle, lighting"
+      "shotType": "CLOSE_UP | MEDIUM | WIDE",
+      "action": "Natural language description of the scene action",
+      "hasProduct": true,
+      "prompt": "Full cinematic, photorealistic image generation prompt. Example: 'A stunning close-up of [Name] wearing the [Product] in a luxury setting, soft golden lighting, 8k resolution, photorealistic.'"
     }
   ]
 }
 
-Rules:
-- Scene 1 should be a HOOK (close-up, attention-grabbing)
-- Last scene should be a CTA (call to action, looking at camera)
-- Keep wardrobe EXACTLY the same across ALL scenes
-- Include product naturally in at least 2 scenes
-- Each prompt should be detailed enough for Imagen/Flux to generate a consistent image
-
 Return ONLY valid JSON.`
         });
-
         const text = response.text;
         let storyboardData;
         try {

@@ -9,6 +9,7 @@ import ReactFlow, {
     Panel,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
+import { AnimatePresence } from 'framer-motion';
 import { useAppStore } from '../store';
 import IdentityNode from './IdentityNode';
 import DialogueNode from './DialogueNode';
@@ -28,6 +29,8 @@ import { WaveformEdge } from './WaveformEdge';
 import DirectorHUD from './DirectorHUD';
 import PromptBuilder from './PromptBuilder';
 import { SonicDock } from './SonicDock';
+import { ViewportToggle } from './ViewportToggle';
+import { FocusOverlay } from './FocusOverlay';
 
 const nodeTypes = {
     identity: IdentityNode,
@@ -83,6 +86,14 @@ export const PlaygroundCanvas = () => {
                 />
                 <Controls className="!bg-zinc-900/80 !border-white/10 !rounded-xl !shadow-2xl" />
             </ReactFlow>
+
+            {/* VIEWPORT CONTROLS */}
+            <ViewportToggle />
+
+            {/* CINEMATIC FOCUS OVERLAY */}
+            <AnimatePresence>
+                <FocusOverlay key="focus-overlay" />
+            </AnimatePresence>
 
             {/* SONIC_DOCK: Audio & Identity Controller */}
             <SonicDock />

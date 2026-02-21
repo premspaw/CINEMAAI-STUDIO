@@ -22,10 +22,30 @@ export default memo(({ id, data }) => {
     const [selectedTemplate, setSelectedTemplate] = useState(null);
     const [sceneDuration, setSceneDuration] = useState(30);
 
+    // Auto-Sync Concept based on connected data
+    React.useEffect(() => {
+        if (!userPrompt || userPrompt.includes('cyberpunk gym')) {
+            const charName = store.activeCharacter?.name;
+            const prodName = store.currentProduct?.description?.split(',')[0] || 'the product';
+
+            if (charName && store.currentProduct?.description) {
+                setUserPrompt(`A high-fashion luxury showcase of ${charName} gracefully wearing and presenting ${prodName}.`);
+            } else if (charName) {
+                setUserPrompt(`A professional social media video featuring ${charName} in a high-end cinematic setting.`);
+            }
+        }
+    }, [store.activeCharacter, store.currentProduct]);
+
     const handleGenerateStoryboard = async () => {
+        // Validation: If no custom prompt, try to infer from product/character
+        let concept = userPrompt;
+        if (!concept && store.currentProduct?.description) {
+            concept = `A professional showcase featuring ${store.currentProduct.description}`;
+        }
+
         const finalPrompt = selectedTemplate?.id === 'custom'
-            ? userPrompt
-            : `${selectedTemplate?.prompt || ''} ${userPrompt}`.trim();
+            ? concept
+            : `${selectedTemplate?.prompt || ''} ${concept}`.trim();
 
         if (!finalPrompt || isGenerating) return;
 
@@ -88,7 +108,17 @@ export default memo(({ id, data }) => {
 
                     // Trigger actual image generation for this scene
                     try {
-                        const sceneImageUrl = await generateCharacterImage(scene.prompt, 'Cinematic');
+                        const characterImg = store.activeCharacter?.image || store.anchorImage;
+                        const productImg = store.currentProduct?.image;
+                        const references = [characterImg, productImg].filter(Boolean);
+
+                        const sceneImageUrl = await generateCharacterImage(
+                            scene.prompt,
+                            references,
+                            '9:16',
+                            '1K',
+                            store.universeBible
+                        );
                         if (sceneImageUrl) {
                             store.updateNodeData(sceneNodeId, {
                                 image: sceneImageUrl,
@@ -180,9 +210,9 @@ export default memo(({ id, data }) => {
             <textarea
                 value={userPrompt}
                 onChange={(e) => setUserPrompt(e.target.value)}
-                placeholder="30s UGC video of Alex in cyberpunk gym reviewing pre-workout..."
+                placeholder="Describe your video vision (e.g. Kajol wearing jewelry in a palace)..."
                 className="w-full bg-black/40 border border-white/5 rounded-xl p-3 text-[11px] text-white/80 font-mono resize-none focus:outline-none focus:border-violet-500/40 transition-colors"
-                rows={2}
+                rows={3}
             />
 
             {/* Generate Button */}

@@ -41,6 +41,8 @@ export const useAppStore = create((set, get) => ({
     nodes: [],
     edges: [],
     activeNodeId: null,
+    viewMode: 'ORBIT', // ORBIT | FOCUS
+    focusedNodeId: null,
 
     // Neural Universe Bible (Long-Context Management)
     universeBible: {
@@ -65,6 +67,13 @@ export const useAppStore = create((set, get) => ({
     setRepairSession: (session) => set({ repairSession: session }),
     setCurrentWardrobe: (text) => set({ currentWardrobe: text }),
     setCurrentProduct: (data) => set({ currentProduct: data }),
+
+    // Dual-Mode Actions
+    setOrbitMode: () => set({ viewMode: 'ORBIT', focusedNodeId: null }),
+    setFocusMode: (nodeId) => set({ viewMode: 'FOCUS', focusedNodeId: nodeId }),
+    toggleViewMode: () => set((state) => ({
+        viewMode: state.viewMode === 'ORBIT' ? 'FOCUS' : 'ORBIT'
+    })),
 
     onNodesChange: (changes) => {
         set({

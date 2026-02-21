@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { Handle, Position } from 'reactflow';
-import { Video, Play, Trash2, Cpu, Sparkles, MessageSquare, Star, ChevronRight, X } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore } from '../store';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Maximize2, Video, Play, Trash2, Cpu, Sparkles, MessageSquare, Star, ChevronRight, X } from 'lucide-react';
 
 const VideoNode = ({ id, data }) => {
     const { videoUrl, label, onDelete } = data;
+    const { setFocusMode } = useAppStore();
     const [isCritiquing, setIsCritiquing] = useState(false);
     const [critique, setCritique] = useState(null);
     const bible = useAppStore(state => state.universeBible);
@@ -15,8 +16,6 @@ const VideoNode = ({ id, data }) => {
         setIsCritiquing(true);
         try {
             const { analyzeSceneMultimodal } = await import('../../geminiService');
-            // In a real production app, we would ideally extract a base64 frame from the video element here.
-            // For now, we'll pass the videoUrl and let the service handle it or mock the visual extraction.
             const feedback = await analyzeSceneMultimodal(videoUrl, bible);
             setCritique(feedback);
         } catch (err) {
@@ -44,22 +43,23 @@ const VideoNode = ({ id, data }) => {
                 <div className="flex-1 relative bg-black/40 group/player">
                     {videoUrl ? (
                         <>
-                            <video src={videoUrl} className="w-full h-full object-cover" loop muted playsInline autoPlay />
-                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover/player:opacity-100 transition-opacity">
-                                <button className="p-4 bg-[#bef264] rounded-full shadow-[0_0_20px_rgba(190,242,100,0.5)] transform hover:scale-110 transition-transform">
-                                    <Play className="w-6 h-6 text-black fill-black" />
+                            <motion.div
+                                layoutId={`media-${id}`}
+                                className="w-full h-full"
+                            >
+                                <video src={videoUrl} className="w-full h-full object-cover" loop muted playsInline autoPlay />
+                            </motion.div>
+
+                            {/* Focus Overlay Action */}
+                            <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover/player:opacity-100 transition-opacity flex justify-end">
+                                <button
+                                    onClick={() => setFocusMode(id)}
+                                    className="p-2 bg-[#bef264] text-black rounded-lg shadow-xl hover:scale-110 active:scale-95 transition-all"
+                                    title="Deep Focus"
+                                >
+                                    <Maximize2 size={12} />
                                 </button>
                             </div>
-
-                            {/* AI Critique Button */}
-                            <button
-                                onClick={handleCritique}
-                                disabled={isCritiquing}
-                                className="absolute top-2 right-2 px-3 py-1.5 bg-black/60 backdrop-blur border border-white/10 rounded-xl flex items-center gap-2 hover:bg-white/10 transition-all z-10"
-                            >
-                                <Sparkles className={`w-3 h-3 ${isCritiquing ? 'text-[#bef264] animate-spin' : 'text-[#bef264]'}`} />
-                                <span className="text-[9px] font-black uppercase tracking-widest text-white">AI Critique</span>
-                            </button>
                         </>
                     ) : (
                         <div className="w-full h-full flex flex-col items-center justify-center gap-2 opacity-20">
