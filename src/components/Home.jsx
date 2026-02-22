@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import {
@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '../store';
 
-const API = 'http://localhost:3001';
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').trim();
 
 const CATEGORIES = [
     { id: 'all', label: 'ALL PROJECTS' },
@@ -32,6 +32,9 @@ export function Home({ setActiveTab }) {
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
+    const [apiOffline, setApiOffline] = useState(false);
+    const didInitFetch = useRef(false);
+    const hasLoggedProxyIssue = useRef(false);
 
     const fetchMedia = async () => {
         console.log("Home: fetchMedia starting [PROXY_SERVER_MODE]...");
@@ -42,20 +45,30 @@ export function Home({ setActiveTab }) {
 
             // 1. Fetch Assets via Proxy
             try {
-                const assetResp = await fetch(`${API}/api/list-assets`);
+                const assetResp = await fetch(`${API_BASE}/api/list-assets`);
+                if (!assetResp.ok) throw new Error(`Assets request failed: ${assetResp.status}`);
                 const assetData = await assetResp.json();
                 dbImages = assetData.images || [];
             } catch (e) {
-                console.error("Home: Proxy Assets Fetch Error", e);
+                if (!hasLoggedProxyIssue.current) {
+                    console.warn('Home: API unreachable, using fallback data source. Start `npm run server` for live API data.');
+                    hasLoggedProxyIssue.current = true;
+                }
+                setApiOffline(true);
             }
 
             // 2. Fetch Characters via Proxy
             try {
-                const charResp = await fetch(`${API}/api/list-characters`);
+                const charResp = await fetch(`${API_BASE}/api/list-characters`);
+                if (!charResp.ok) throw new Error(`Characters request failed: ${charResp.status}`);
                 const charData = await charResp.json();
                 dbCharacters = charData.characters || [];
             } catch (e) {
-                console.error("Home: Proxy Characters Fetch Error", e);
+                if (!hasLoggedProxyIssue.current) {
+                    console.warn('Home: API unreachable, using fallback data source. Start `npm run server` for live API data.');
+                    hasLoggedProxyIssue.current = true;
+                }
+                setApiOffline(true);
             }
 
             // If proxy failed or returned nothing, and we have direct access (rare if DNS failing),
@@ -103,7 +116,6 @@ export function Home({ setActiveTab }) {
             );
 
             setMedia(merged);
-            console.log("Home: Media state updated via Proxy.");
         } catch (e) {
             console.error("Home: Critical Fetch Error", e);
             const mockMedia = Array.from({ length: 12 }).map((_, i) => ({
@@ -123,6 +135,8 @@ export function Home({ setActiveTab }) {
     };
 
     useEffect(() => {
+        if (didInitFetch.current) return;
+        didInitFetch.current = true;
         fetchMedia();
     }, []);
 
@@ -191,6 +205,15 @@ export function Home({ setActiveTab }) {
                     ))}
                 </div>
             </section>
+
+
+            {apiOffline && (
+                <section className="px-6 lg:px-12 pb-4">
+                    <div className="max-w-screen-2xl mx-auto rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-[11px] tracking-wide text-amber-100">
+                        API server is offline. Run <span className="font-black">npm run server</span> to enable live assets from localhost:3001.
+                    </div>
+                </section>
+            )}
 
             {/* CATEGORY FILTERS & SEARCH */}
             <div className="sticky top-20 z-40 px-6 lg:px-12 py-8 pointer-events-none">
