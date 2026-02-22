@@ -131,8 +131,14 @@ export function Home({ setActiveTab }) {
         (m.name.toLowerCase().includes(searchQuery.toLowerCase()))
     );
 
+    const stats = [
+        { label: 'Projects', value: media.length || 0 },
+        { label: 'Characters', value: media.filter((m) => m.isCharacter).length },
+        { label: 'Videos', value: media.filter((m) => m.type === 'video').length },
+    ];
+
     return (
-        <div className="min-h-screen bg-slate-950 text-white pb-20 font-mono selection:bg-[#bef264] selection:text-black">
+        <div className="min-h-screen bg-[radial-gradient(circle_at_15%_15%,rgba(190,242,100,0.12),transparent_35%),radial-gradient(circle_at_85%_10%,rgba(0,242,255,0.12),transparent_35%),#020617] text-white pb-20 font-mono selection:bg-[#bef264] selection:text-black">
             {/* HERO ACTION HEADER */}
             <header className="pt-32 pb-12 px-6 lg:px-12 relative overflow-hidden">
                 {/* Background Glows (Anti-Gravity) */}
@@ -169,6 +175,22 @@ export function Home({ setActiveTab }) {
                     </div>
                 </div>
             </header>
+
+            <section className="px-6 lg:px-12 pb-8">
+                <div className="max-w-screen-2xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {stats.map((card) => (
+                        <div
+                            key={card.label}
+                            className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl px-6 py-5 shadow-[0_15px_45px_rgba(0,0,0,0.35)]"
+                        >
+                            <p className="text-[10px] uppercase tracking-[0.3em] text-white/50">{card.label}</p>
+                            <p className="text-4xl font-black mt-2 bg-gradient-to-r from-[#bef264] via-white to-[#00f2ff] bg-clip-text text-transparent">
+                                {card.value}
+                            </p>
+                        </div>
+                    ))}
+                </div>
+            </section>
 
             {/* CATEGORY FILTERS & SEARCH */}
             <div className="sticky top-20 z-40 px-6 lg:px-12 py-8 pointer-events-none">
