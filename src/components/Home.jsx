@@ -20,11 +20,11 @@ import { useAppStore } from '../store';
 const API = 'http://localhost:3001';
 
 const CATEGORIES = [
-    { id: 'all', label: 'ALL' },
-    { id: 'characters', label: 'MY CHARACTERS' },
-    { id: 'cinematic', label: 'CINEMATIC REELS' },
-    { id: 'lifestyle', label: 'LIFESTYLE SHOTS' },
-    { id: 'commercial', label: 'COMMERCIALS' }
+    { id: 'all', label: 'ALL PROJECTS' },
+    { id: 'characters', label: 'CHARACTER LAB' },
+    { id: 'cinematic', label: 'CINEMA CUTS' },
+    { id: 'lifestyle', label: 'LIFESTYLE ADS' },
+    { id: 'commercial', label: 'BRAND SPOTS' }
 ];
 
 export function Home({ setActiveTab }) {
@@ -143,11 +143,14 @@ export function Home({ setActiveTab }) {
                     <div className="space-y-4">
                         <div className="flex items-center gap-3">
                             <div className="w-1.5 h-6 bg-[#bef264] shadow-[0_0_20px_#bef264]" />
-                            <h2 className="text-[10px] font-black tracking-[0.5em] text-[#bef264] uppercase animate-pulse">Neural_Global_Archive // v3.1</h2>
+                            <h2 className="text-[10px] font-black tracking-[0.5em] text-[#bef264] uppercase animate-pulse">Creator Orbit // Home</h2>
                         </div>
                         <h1 className="text-7xl md:text-9xl font-black italic tracking-tighter leading-[0.85] uppercase">
-                            Global <br /> <span className="text-transparent border-t-2 border-b-2 border-white/5 px-4 bg-clip-text bg-gradient-to-r from-white via-white/40 to-white/10">Archive</span>
+                            AI Cinema <br /> <span className="text-transparent border-t-2 border-b-2 border-white/5 px-4 bg-clip-text bg-gradient-to-r from-[#bef264] via-white to-[#00f2ff]">Dashboard</span>
                         </h1>
+                        <p className="max-w-xl text-white/60 text-sm md:text-base tracking-wide">
+                            Your creative command center for storyboards, product shots, and cinematic social campaigns.
+                        </p>
                     </div>
 
                     <div className="flex flex-col items-end gap-6">
@@ -159,7 +162,7 @@ export function Home({ setActiveTab }) {
                             <div className="relative flex items-center gap-4">
                                 <Plus size={24} strokeWidth={4} className="group-hover:rotate-90 transition-transform duration-500" />
                                 <span className="text-xs font-black uppercase tracking-[0.25em] relative block">
-                                    [ INITIALIZE NEW CONSTRUCT ]
+                                    [ CREATE NEW SCENE ]
                                 </span>
                             </div>
                         </button>
@@ -185,7 +188,7 @@ export function Home({ setActiveTab }) {
                     <div className="relative group">
                         <input
                             type="text"
-                            placeholder="QUERY_ARCHIVE..."
+                            placeholder="SEARCH SHOTS, CHARACTERS, CAMPAIGNS..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             className="bg-black/60 backdrop-blur-2xl border border-white/10 rounded-full px-8 py-3 text-[10px] font-black uppercase tracking-widest outline-none focus:border-[#bef264] w-56 focus:w-80 transition-all surface-glass"
@@ -200,7 +203,7 @@ export function Home({ setActiveTab }) {
                 {loading ? (
                     <div className="h-[50vh] flex flex-col items-center justify-center gap-8">
                         <div className="w-20 h-20 border-2 border-[#bef264]/10 border-t-[#bef264] rounded-full animate-spin shadow-[0_0_40px_rgba(190,242,100,0.2)]" />
-                        <span className="text-[11px] uppercase font-black tracking-[0.5em] text-[#bef264] animate-pulse">Syncing_Neural_Frequencies...</span>
+                        <span className="text-[11px] uppercase font-black tracking-[0.5em] text-[#bef264] animate-pulse">Loading_Your_Creative_Universe...</span>
                     </div>
                 ) : filteredMedia.length === 0 ? (
                     /* EMPTY STATE */
@@ -218,14 +221,14 @@ export function Home({ setActiveTab }) {
                             <div className="absolute inset-0 blur-[60px] bg-[#bef264]/10 rounded-full animate-pulse" />
                         </div>
                         <div className="space-y-3">
-                            <h3 className="text-3xl font-black uppercase italic tracking-tighter text-white/80">Vault_Uninitialized</h3>
-                            <p className="text-white/20 text-[11px] tracking-[0.3em] uppercase">No active identities or assets detected in primary sector.</p>
+                            <h3 className="text-3xl font-black uppercase italic tracking-tighter text-white/80">No Projects Yet</h3>
+                            <p className="text-white/20 text-[11px] tracking-[0.3em] uppercase">Start with a scene, import references, and build your visual campaign in minutes.</p>
                         </div>
                         <button
                             onClick={() => setActiveTab('creator')}
                             className="bg-[#bef264]/5 border border-[#bef264]/20 px-10 py-4 rounded-full text-[11px] font-black uppercase tracking-widest hover:bg-[#bef264] hover:text-black transition-all shadow-[0_0_40px_rgba(190,242,100,0.1)]"
                         >
-                            EXECUTE_FIRST_INITIALIZER
+                            CREATE YOUR FIRST PROJECT
                         </button>
                     </div>
                 ) : (
