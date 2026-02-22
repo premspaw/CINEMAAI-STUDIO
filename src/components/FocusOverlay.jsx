@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Play, Pause, Camera, Scissors, Wand2, Download, Layers } from 'lucide-react';
 import { useAppStore } from '../store';
@@ -14,6 +14,18 @@ export const FocusOverlay = () => {
     const [isDrawing, setIsDrawing] = useState(false);
     const [brushSize, setBrushSize] = useState(20);
 
+    // ✅ RULE: Hooks MUST be defined before any early returns
+    useEffect(() => {
+        if (isSurgeryMode && canvasRef.current) {
+            const imgElement = document.getElementById(`focused-image-${focusedNodeId}`);
+            if (imgElement) {
+                canvasRef.current.width = imgElement.clientWidth;
+                canvasRef.current.height = imgElement.clientHeight;
+            }
+        }
+    }, [isSurgeryMode, focusedNodeId]);
+
+    // Now safe to return early
     if (viewMode !== 'FOCUS' || !focusedNode) return null;
 
     const mediaUrl = focusedNode.data?.image || focusedNode.data?.videoUrl;
@@ -21,13 +33,103 @@ export const FocusOverlay = () => {
 
     const togglePlay = () => {
         if (videoRef.current) {
-            if (isPlaying) videoRef.current.pause();
-            else videoRef.current.play();
-            setIsPlaying(!isPlaying);
+            if (isPlaying) {
+                videoRef.current.pause();
+                setIsPlaying(false);
+            } else {
+                videoRef.current.play().catch(e => console.error("Video play failed:", e));
+                setIsPlaying(true);
+            }
         }
     };
 
-    // --- Neural Surgery (Masking Logic) ---
+    const handleExport = () => {
+        if (!mediaUrl) return;
+        const link = document.createElement('a');
+        link.href = mediaUrl;
+        link.download = isVideo ? `cinema_studio_render_${focusedNodeId}.mp4` : `cinema_studio_render_${focusedNodeId}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    const handleEnhance = async () => {
+        if (focusedNodeId) {
+            useAppStore.getState().upscaleNodeImage(focusedNodeId, '4K');
+        }
+    };
+
+    const handleRemap = async () => {
+        if (focusedNodeId && !isVideo) {
+            const store = useAppStore.getState();
+            const node = store.nodes.find(n => n.id === focusedNodeId);
+            if (!node || !store.activeCharacter) return;
+
+            store.updateNodeData(focusedNodeId, { isOptimistic: true, label: 'REMAPPING_IDENTITY...' });
+
+            try {
+                const { generateCharacterImage, buildConsistencyRefs } = await import('../../geminiService');
+                const references = await buildConsistencyRefs({
+                    kit: store.activeCharacter.identity_kit || store.detailMatrix,
+                    anchor: store.anchorImage,
+                    wardrobe: store.wardrobeImage,
+                    pose: store.poseImage,
+                });
+
+                const prompt = `SUBJECT: ${store.activeCharacter.name}. VARIATION: Alternative angle/expression. STYLE: ${store.activeCharacter.visualStyle}. ${store.actionScript || 'Cinematic Portrait'}.`;
+
+                const result = await generateCharacterImage(
+                    prompt,
+                    references,
+                    store.camera.ratio,
+                    store.camera.resolution
+                );
+
+                if (result) {
+                    store.updateNodeData(focusedNodeId, {
+                        image: result,
+                        isOptimistic: false,
+                        label: 'REMAPPED_OUTPUT'
+                    });
+                } else {
+                    store.updateNodeData(focusedNodeId, { isOptimistic: false });
+                }
+            } catch (err) {
+                console.error("Remap failed:", err);
+                store.updateNodeData(focusedNodeId, { isOptimistic: false });
+            }
+        }
+    };
+
+    const handleExecuteRepair = async (repairPrompt) => {
+        if (!focusedNodeId || isVideo) return;
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        const store = useAppStore.getState();
+        store.updateNodeData(focusedNodeId, { isOptimistic: true, label: 'EXECUTING_SURGERY...' });
+
+        try {
+            const { generateSurgicalRepair } = await import('../../geminiService');
+            const maskData = canvas.toDataURL('image/png');
+            const result = await generateSurgicalRepair(focusedNode.data.image, maskData, repairPrompt);
+
+            if (result) {
+                store.updateNodeData(focusedNodeId, {
+                    image: result,
+                    isOptimistic: false,
+                    label: 'SURGERY_SUCCESS'
+                });
+                setIsSurgeryMode(false);
+            } else {
+                store.updateNodeData(focusedNodeId, { isOptimistic: false });
+            }
+        } catch (err) {
+            console.error("Surgery failed:", err);
+            store.updateNodeData(focusedNodeId, { isOptimistic: false });
+        }
+    };
+
     const startDrawing = (e) => {
         const canvas = canvasRef.current;
         if (!canvas) return;
@@ -62,6 +164,7 @@ export const FocusOverlay = () => {
 
     const clearMask = () => {
         const canvas = canvasRef.current;
+        if (!canvas) return;
         const ctx = canvas.getContext('2d');
         ctx.clearRect(0, 0, canvas.width, canvas.height);
     };
@@ -73,10 +176,8 @@ export const FocusOverlay = () => {
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-3xl"
         >
-            {/* Background Close Trigger */}
             <div className="absolute inset-0" onClick={setOrbitMode} />
 
-            {/* Close Button */}
             <button
                 onClick={setOrbitMode}
                 className="absolute top-8 right-8 p-4 bg-white/5 hover:bg-white/10 border border-white/10 text-white/40 hover:text-white rounded-full transition-all z-[210] group"
@@ -84,7 +185,6 @@ export const FocusOverlay = () => {
                 <X size={24} className="group-hover:rotate-90 transition-transform" />
             </button>
 
-            {/* Main Cinematic Content */}
             <div className="relative w-full h-full flex items-center justify-center p-20 pointer-events-none">
                 <div className="relative max-w-full max-h-full pointer-events-auto shadow-[0_50px_100px_rgba(0,0,0,0.8)] rounded-3xl overflow-hidden border border-white/10 bg-zinc-900">
                     {isVideo ? (
@@ -101,18 +201,25 @@ export const FocusOverlay = () => {
                     ) : (
                         <div className="relative">
                             <motion.img
+                                id={`focused-image-${focusedNodeId}`}
                                 layoutId={`media-${focusedNodeId}`}
                                 src={mediaUrl}
                                 className="max-w-full max-h-[85vh] object-contain"
+                                onLoad={() => {
+                                    if (isSurgeryMode && canvasRef.current) {
+                                        const imgElement = document.getElementById(`focused-image-${focusedNodeId}`);
+                                        if (imgElement) {
+                                            canvasRef.current.width = imgElement.clientWidth;
+                                            canvasRef.current.height = imgElement.clientHeight;
+                                        }
+                                    }
+                                }}
                             />
 
-                            {/* Neural Surgery Tool (Canvas Overlay) */}
                             {isSurgeryMode && (
                                 <canvas
                                     ref={canvasRef}
-                                    width={1200} // Dynamic sizing would be better, but fixed for now
-                                    height={1200}
-                                    className="absolute inset-0 w-full h-full cursor-crosshair z-30"
+                                    className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 cursor-crosshair z-30 touch-none"
                                     onMouseDown={startDrawing}
                                     onMouseMove={draw}
                                     onMouseUp={stopDrawing}
@@ -122,7 +229,6 @@ export const FocusOverlay = () => {
                         </div>
                     )}
 
-                    {/* Video Controls Overlay */}
                     {isVideo && (
                         <div className="absolute bottom-0 inset-x-0 p-6 bg-gradient-to-t from-black/80 to-transparent flex items-center justify-between opacity-0 hover:opacity-100 transition-opacity">
                             <button onClick={togglePlay} className="p-3 bg-[#bef264] text-black rounded-lg">
@@ -132,7 +238,7 @@ export const FocusOverlay = () => {
                                 <motion.div
                                     className="h-full bg-[#bef264]"
                                     initial={{ width: 0 }}
-                                    animate={{ width: '60%' }} // Mock progress
+                                    animate={{ width: '60%' }}
                                 />
                             </div>
                         </div>
@@ -140,16 +246,10 @@ export const FocusOverlay = () => {
                 </div>
             </div>
 
-            {/* Cinematic Toolbar (Right Side) */}
             <div className="absolute right-8 top-1/2 -translate-y-1/2 flex flex-col gap-4 z-[210]">
                 <div className="p-2 bg-black/60 border border-white/10 backdrop-blur-2xl rounded-3xl flex flex-col gap-2">
-                    <ToolbarButton
-                        icon={<Download size={18} />}
-                        label="EXPORT"
-                        onClick={() => { }}
-                    />
+                    <ToolbarButton icon={<Download size={18} />} label="EXPORT" onClick={handleExport} />
                     <div className="w-full h-px bg-white/5 my-1" />
-
                     {!isVideo && (
                         <ToolbarButton
                             icon={<Scissors size={18} />}
@@ -158,18 +258,8 @@ export const FocusOverlay = () => {
                             onClick={() => setIsSurgeryMode(!isSurgeryMode)}
                         />
                     )}
-
-                    <ToolbarButton
-                        icon={<Wand2 size={18} />}
-                        label="ENHANCE"
-                        onClick={() => { }}
-                    />
-
-                    <ToolbarButton
-                        icon={<Layers size={18} />}
-                        label="REMAP"
-                        onClick={() => { }}
-                    />
+                    <ToolbarButton icon={<Wand2 size={18} />} label="ENHANCE" onClick={handleEnhance} />
+                    <ToolbarButton icon={<Layers size={18} />} label="REMAP" onClick={handleRemap} />
                 </div>
 
                 {isSurgeryMode && (
@@ -182,7 +272,6 @@ export const FocusOverlay = () => {
                             <Camera size={16} />
                             <span className="text-[10px] font-black uppercase tracking-wider">Neural_Mask_v1</span>
                         </div>
-
                         <div className="space-y-2">
                             <div className="flex justify-between text-[9px] font-bold">
                                 <span>BRUSH_SIZE</span>
@@ -197,22 +286,24 @@ export const FocusOverlay = () => {
                                 className="w-full accent-black"
                             />
                         </div>
-
                         <textarea
+                            id="repair-prompt-input"
                             placeholder="REPAIR_PROMPT: (e.g. fix eye details, remove reflections)"
                             className="w-full h-24 bg-black/10 border border-black/10 rounded-xl p-3 text-[10px] font-mono placeholder:text-black/30 resize-none focus:outline-none"
                         />
-
                         <button
                             className="w-full py-3 bg-black text-[#bef264] text-[9px] font-black uppercase tracking-widest rounded-xl hover:scale-105 transition-all shadow-xl"
                             onClick={() => {
-                                alert("SURGERY COMMAND QUEUED TO CLOUD RUN...");
-                                setIsSurgeryMode(false);
+                                const prompt = document.getElementById('repair-prompt-input')?.value;
+                                if (!prompt) {
+                                    alert("Please describe the repair needed.");
+                                    return;
+                                }
+                                handleExecuteRepair(prompt);
                             }}
                         >
                             EXECUTE_REPAIR
                         </button>
-
                         <button
                             onClick={clearMask}
                             className="w-full py-2 border border-black/20 text-black/60 text-[8px] font-bold uppercase tracking-widest rounded-xl"
@@ -223,7 +314,6 @@ export const FocusOverlay = () => {
                 )}
             </div>
 
-            {/* Metadata Label (Bottom Left) */}
             <div className="absolute bottom-8 left-8 flex flex-col gap-1 z-[210]">
                 <div className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-[#bef264]" />
@@ -239,8 +329,8 @@ const ToolbarButton = ({ icon, label, onClick, active = false }) => (
     <button
         onClick={onClick}
         className={`flex flex-col items-center gap-1.5 p-4 rounded-2xl transition-all ${active
-                ? 'bg-[#bef264] text-black shadow-[0_0_20px_rgba(190,242,100,0.3)]'
-                : 'text-white/40 hover:text-white hover:bg-white/5'
+            ? 'bg-[#bef264] text-black shadow-[0_0_20px_rgba(190,242,100,0.3)]'
+            : 'text-white/40 hover:text-white hover:bg-white/5'
             }`}
     >
         {icon}

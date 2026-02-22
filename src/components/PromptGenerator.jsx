@@ -758,7 +758,8 @@ export function PromptGenerator({ onUpscale }) {
                     aspect_ratio: selections.aspectRatio,
                     image: selections.referenceImage,
                     quality: selections.quality,
-                    google_search: selections.searchGrounding
+                    google_search: selections.searchGrounding,
+                    duration: selections.duration
                 })
             })
 
@@ -1049,6 +1050,22 @@ export function PromptGenerator({ onUpscale }) {
                                         : ['low', 'medium', 'high']
                                     ).map((q) => (
                                         <option key={q} value={q}>{q.toUpperCase()}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
+
+                        {/* Video Duration — only for video mode */}
+                        {mode === 'video' && (
+                            <div className="w-28 shrink-0">
+                                <label className="text-[10px] font-bold text-gray-500 mb-2 block uppercase tracking-[0.2em]">Duration</label>
+                                <select
+                                    value={selections.duration}
+                                    onChange={(e) => setSelections(prev => ({ ...prev, duration: parseInt(e.target.value) }))}
+                                    className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-xs text-white outline-none hover:bg-white/10 transition appearance-none"
+                                >
+                                    {[4, 5, 8].map(d => (
+                                        <option key={d} value={d}>{d} Seconds</option>
                                     ))}
                                 </select>
                             </div>

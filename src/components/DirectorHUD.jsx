@@ -371,7 +371,15 @@ export default function DirectorHUD() {
                                     placeholder="Describe the cinematic moment..."
                                     className="w-full h-32 bg-black/40 border border-white/10 rounded-2xl p-5 text-xs text-white/80 focus:border-[#bef264]/50 outline-none resize-none font-medium placeholder:text-white/10 transition-all shadow-inner"
                                 />
-                                <button className="absolute bottom-4 right-4 text-[9px] bg-white/10 hover:bg-[#bef264] hover:text-black text-white px-3 py-1.5 rounded-full flex items-center gap-2 transition-all font-black uppercase tracking-widest shadow-xl">
+                                <button
+                                    onClick={async () => {
+                                        if (!store.actionScript) return;
+                                        const { enhancePrompt } = await import('../../geminiService');
+                                        const enhanced = await enhancePrompt(store.actionScript);
+                                        store.setState(s => ({ ...s, actionScript: enhanced }));
+                                    }}
+                                    className="absolute bottom-4 right-4 text-[9px] bg-white/10 hover:bg-[#bef264] hover:text-black text-white px-3 py-1.5 rounded-full flex items-center gap-2 transition-all font-black uppercase tracking-widest shadow-xl"
+                                >
                                     <Sparkles size={12} /> ENHANCE
                                 </button>
                             </div>

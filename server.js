@@ -75,10 +75,9 @@ app.post('/api/proxy/tts', async (req, res) => {
     try {
         const { text, voiceId } = req.body;
         if (!text) throw new Error('No text provided');
-        console.log('AudioService Object:', Object.keys(audioService));
-        const audioContent = await audioService.synthesizeSpeech(text, voiceId);
-        if (!audioContent) throw new Error('TTS Synthesis failed');
-        res.json({ audioContent });
+        const result = await audioService.synthesizeSpeech(text, voiceId);
+        if (!result.success) throw new Error(result.error);
+        res.json({ audioContent: result.audioContent });
     } catch (error) {
         console.error('TTS Proxy Error:', error);
         res.status(500).json({ error: error.message });
@@ -90,8 +89,9 @@ app.post('/api/proxy/stt', async (req, res) => {
     try {
         const { audio } = req.body; // Base64
         if (!audio) throw new Error('No audio data provided');
-        const transcription = await audioService.transcribeSpeech(audio);
-        res.json({ transcription });
+        const result = await audioService.transcribeSpeech(audio);
+        if (!result.success) throw new Error(result.error);
+        res.json({ transcription: result.transcription });
     } catch (error) {
         console.error('STT Proxy Error:', error);
         res.status(500).json({ error: error.message });
@@ -157,10 +157,14 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // Initialize Supabase
 const supabaseUrl = (process.env.VITE_SUPABASE_URL || '').trim();
-const supabaseKey = (process.env.VITE_SUPABASE_ANON_KEY || '').trim();
+const supabaseKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || '').trim();
 const supabase = (supabaseUrl && supabaseKey && supabaseUrl.startsWith('https://'))
     ? createClient(supabaseUrl, supabaseKey)
     : null;
+
+if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.log("[SERVER] Supabase initialized with Service Role (Admin) access.");
+}
 
 if (!supabase) console.warn("Supabase not configured in server environment.");
 
@@ -343,27 +347,74 @@ async function handleGoogle(req, res) {
         const apiKey = process.env.GOOGLE_API_KEY;
 
         if (model === 'veo') {
-            // Video Generation uses the Predict API (Vertex-style via Gemini API)
-            const modelName = 'veo-3.1-generate-preview';
-            console.log(`Calling Google Veo with prompt:`, prompt);
+            const { duration, image, references = [] } = req.body;
+            const inputImage = image || (references.length > 0 ? references[0] : null);
 
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:predict?key=${apiKey}`, {
+            const modelName = 'veo-3.1-generate-preview';
+            console.log(`Calling Google Veo (${inputImage ? 'I2V' : 'T2V'}) with prompt:`, prompt);
+
+            // Handle image processing for Veo if present
+            let instance = { prompt: prompt };
+            if (inputImage) {
+                let imageData = '';
+                if (inputImage.startsWith('data:')) {
+                    imageData = inputImage.split(',')[1];
+                } else if (inputImage.startsWith('http')) {
+                    const imgResp = await fetch(inputImage);
+                    const buffer = await imgResp.arrayBuffer();
+                    imageData = Buffer.from(buffer).toString('base64');
+                } else {
+                    imageData = inputImage;
+                }
+                instance.image = { bytesBase64Encoded: imageData };
+            }
+
+            const initialResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:predictLongRunning?key=${apiKey}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    instances: [{ prompt: prompt }],
+                    instances: [instance],
                     parameters: {
                         sampleCount: 1,
                         aspectRatio: aspect_ratio || "16:9",
-                        outputMimeType: "video/mp4"
+                        durationSeconds: duration || 5
                     }
                 })
             });
 
-            const data = await response.json();
-            if (data.error) throw new Error(data.error.message || "Google Veo Error");
+            const initialData = await initialResponse.json();
+            if (initialData.error) {
+                console.error('[VEO-HG] Initiation Error:', JSON.stringify(initialData.error, null, 2));
+                throw new Error(initialData.error.message || "Google Veo HG Initiation Failed");
+            }
 
-            const b64Data = data.predictions?.[0]?.bytesBase64Encoded;
+            const operationName = initialData.name;
+            console.log(`[VEO-HG] Operation started: ${operationName}`);
+
+            // Polling logic
+            let resultData = null;
+            let attempts = 0;
+            const maxAttempts = 100;
+
+            while (attempts < maxAttempts) {
+                const pollResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/${operationName}?key=${apiKey}`);
+                const pollData = await pollResponse.json();
+
+                if (pollData.error) throw new Error(pollData.error.message || "Veo Poll Failed");
+
+                if (pollData.done) {
+                    resultData = pollData.response;
+                    break;
+                }
+
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                attempts++;
+                if (attempts % 5 === 0) console.log(`[VEO-HG] Still waiting... (${attempts * 2}s elapsed)`);
+            }
+
+            if (!resultData) throw new Error("Video generation timed out");
+
+            const b64Data = resultData.predictions?.[0]?.bytesBase64Encoded;
             if (!b64Data) throw new Error("No video data returned from Google");
 
             return res.json({ url: `data:video/mp4;base64,${b64Data}` });
@@ -371,11 +422,11 @@ async function handleGoogle(req, res) {
             // Image Generation uses the Native generateContent API (Nano Banana)
             // Mapping frontend IDs to official model names
             const modelMapping = {
-                'nano-banana': 'imagen-4.0-generate-001',
-                'nano-banana-pro': 'imagen-4.0-ultra-generate-001'
+                'nano-banana': 'gemini-2.5-flash-image',
+                'nano-banana-pro': 'gemini-3-pro-image-preview'
             };
 
-            const modelName = modelMapping[model] || 'imagen-4.0-generate-001';
+            const modelName = modelMapping[model] || 'gemini-2.5-flash-image';
 
             // Pro Features: 4K support and Search Grounding
             const { google_search, quality } = req.body;
@@ -1311,36 +1362,85 @@ app.post('/api/ugc/veo-i2v', async (req, res) => {
         const apiKey = process.env.GOOGLE_API_KEY;
         const modelName = 'veo-3.1-generate-preview';
 
-        broadcastProgress('veo-i2v', 1, 3, 'Preparing keyframe for animation...');
+        broadcastProgress('veo-i2v', 1, 3, 'Initiating video generation...');
 
-        // Extract base64 data from the image
-        const base64Match = image.match(/^data:image\/(\w+);base64,(.+)$/);
-        const imageData = base64Match ? base64Match[2] : image;
-        const mimeType = base64Match ? `image/${base64Match[1]}` : 'image/png';
+        // Image Processing: Handle both base64 and URLs
+        let imageData = '';
+        let mimeType = 'image/png';
 
-        broadcastProgress('veo-i2v', 2, 3, 'Animating with Veo 3.1 I2V...');
+        if (image.startsWith('data:')) {
+            const base64Match = image.match(/^data:image\/(\w+);base64,(.+)$/);
+            imageData = base64Match ? base64Match[2] : image;
+            mimeType = base64Match ? `image/${base64Match[1]}` : 'image/png';
+        } else if (image.startsWith('http')) {
+            console.log(`[VEO] Fetching image from URL: ${image}`);
+            const imageResp = await fetch(image);
+            if (!imageResp.ok) throw new Error(`Failed to fetch image from URL: ${imageResp.statusText}`);
+            const buffer = await imageResp.arrayBuffer();
+            imageData = Buffer.from(buffer).toString('base64');
+            const contentType = imageResp.headers.get('content-type');
+            if (contentType) mimeType = contentType;
+        } else {
+            imageData = image; // Assume raw base64
+        }
 
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:predict?key=${apiKey}`, {
+        console.log(`[VEO] Initiating predictLongRunning for ${modelName}...`);
+
+        // 1. Start the long-running operation
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:predictLongRunning?key=${apiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 instances: [{
                     prompt: motionPrompt || 'Subtle natural movement, cinematic',
-                    image: { bytesBase64Encoded: imageData, mimeType }
+                    image: { bytesBase64Encoded: imageData }
                 }],
                 parameters: {
                     sampleCount: 1,
                     aspectRatio: "9:16",
-                    durationSeconds: duration || 5,
-                    outputMimeType: "video/mp4"
+                    durationSeconds: duration || 5
                 }
             })
         });
 
-        const data = await response.json();
-        if (data.error) throw new Error(data.error.message || "Veo I2V Error");
+        const initialData = await response.json();
+        if (initialData.error) {
+            console.error('[VEO] Initiation Error:', JSON.stringify(initialData.error, null, 2));
+            throw new Error(initialData.error.message || "Veo I2V Initiation Failed");
+        }
 
-        const videoData = data.predictions?.[0]?.bytesBase64Encoded;
+        const operationName = initialData.name;
+        console.log(`[VEO] Operation started: ${operationName}`);
+        broadcastProgress('veo-i2v', 2, 3, 'Animating with Veo 3.1 (Processing)...');
+
+        // 2. Poll for completion
+        let resultData = null;
+        let attempts = 0;
+        const maxAttempts = 100;
+
+        while (attempts < maxAttempts) {
+            const pollResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/${operationName}?key=${apiKey}`);
+            const pollData = await pollResponse.json();
+
+            if (pollData.error) throw new Error(pollData.error.message || "Poll Failed");
+
+            if (pollData.done) {
+                resultData = pollData.response;
+                break;
+            }
+
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            attempts++;
+
+            if (attempts % 5 === 0) {
+                console.log(`[VEO] Polling... (${attempts * 2}s)`);
+                broadcastProgress('veo-i2v', 2, 3, `Still processing... (${attempts * 2}s)`);
+            }
+        }
+
+        if (!resultData) throw new Error("Video generation timed out after 120s");
+
+        const videoData = resultData.predictions?.[0]?.bytesBase64Encoded;
         if (!videoData) throw new Error("No video data returned from Veo I2V");
 
         broadcastProgress('veo-i2v', 3, 3, 'Video animation complete!');

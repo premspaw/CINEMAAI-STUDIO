@@ -689,3 +689,20 @@ export const analyzeSceneMultimodal = async (image, bible = null) => {
         return { critique: "Neural vision link unstable. Manual review required.", score: 0, recommendations: [] };
     }
 };
+
+export const enhancePrompt = async (prompt) => {
+    try {
+        const ai = getAI();
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: `As a Cinematography Director, enhance this scene description into a high-fidelity cinematic prompt for an AI image generator. 
+          Focus on lighting, lens choice, textures, and atmosphere. Keep the core subject and action identical.
+          ORIGINAL: ${prompt}
+          ENHANCED VERSION (Strictly one paragraph, no intro/outro):`,
+        });
+        return response.text || prompt;
+    } catch (err) {
+        console.error("Prompt enhancement failed:", err);
+        return prompt;
+    }
+};

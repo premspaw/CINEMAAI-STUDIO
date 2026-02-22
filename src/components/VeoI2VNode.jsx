@@ -6,6 +6,7 @@ import { useAppStore } from '../store';
 
 const MOTION_PRESETS = [
     { id: 'breathing', label: 'NATURAL_BREATH', prompt: 'Subtle natural breathing, soft micro-movements, cinematic' },
+    { id: 'still', label: 'STILL_MOTION', prompt: 'Extremely subtle cinematic movement, almost still, high composition stability' },
     { id: 'talking', label: 'TALKING_CAM', prompt: 'Person talking to camera, natural head movements, engaging expression' },
     { id: 'walking', label: 'WALK_FORWARD', prompt: 'Walking forward confidently, smooth steady movement' },
     { id: 'action', label: 'ACTION_SHOT', prompt: 'Dynamic action movement, athletic motion, energetic' },
@@ -31,7 +32,9 @@ export default memo(({ id, data }) => {
         if (!inputImage || isGenerating) return;
 
         setIsGenerating(true);
-        const motionPrompt = customMotion || selectedPreset.prompt;
+        // Append duration to prompt for better model adherence
+        const basePrompt = customMotion || selectedPreset.prompt;
+        const motionPrompt = `${basePrompt}. The animation should be exactly ${duration} seconds long.`;
 
         try {
             const response = await fetch('http://localhost:3001/api/ugc/veo-i2v', {
@@ -47,9 +50,12 @@ export default memo(({ id, data }) => {
 
             if (result.videoUrl) {
                 updateNodeData(id, { videoUrl: result.videoUrl, motionPrompt });
+            } else {
+                alert(`Video Animation Failed: ${result.error || 'Unknown error'}`);
             }
         } catch (err) {
             console.error('Veo I2V Error:', err);
+            alert("Connection error: Make sure the local server is running and your API key supports Veo 3.1.");
         } finally {
             setIsGenerating(false);
         }
@@ -96,10 +102,9 @@ export default memo(({ id, data }) => {
                     </div>
                 )}
             </div>
-
             {/* Duration */}
             <div className="flex gap-1.5 mb-3">
-                {[3, 5, 8].map(d => (
+                {[4, 5, 8].map(d => (
                     <button
                         key={d}
                         onClick={() => setDuration(d)}

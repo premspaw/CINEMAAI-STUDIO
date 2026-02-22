@@ -54,9 +54,12 @@ export default memo(({ id, data }) => {
                 const url = URL.createObjectURL(blob);
                 setAudioUrl(url);
                 updateNodeData(id, { audioUrl: url });
+            } else {
+                alert(`Voice Generation Failed: ${result.error || 'Unknown error'}`);
             }
         } catch (err) {
             console.error("Synthesis error:", err);
+            alert("Connection error: Make sure the local server is running on port 3001.");
         } finally {
             setIsSynthesizing(false);
         }

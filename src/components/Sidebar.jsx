@@ -1,8 +1,19 @@
 import { Bot, Clapperboard, History, Settings, Maximize2, ChevronLeft, ChevronRight, Menu, Camera, FolderOpen, Palette, LayoutDashboard, UserCircle, Users } from 'lucide-react'
 
 import { cn } from '../lib/utils'
+import { useEffect } from 'react'
 
 export function Sidebar({ activeTab, setActiveTab, isCollapsed, toggleCollapse }) {
+    // Auto-hide sidebar in Director's Cut after 5 seconds
+    useEffect(() => {
+        if (activeTab === 'directors-cut' && !isCollapsed) {
+            const timer = setTimeout(() => {
+                toggleCollapse();
+            }, 5000);
+            return () => clearTimeout(timer);
+        }
+    }, [activeTab, isCollapsed, toggleCollapse]);
+
     const navItems = [
         { id: 'prompt', label: 'Prompt Builder', icon: Bot },
         { id: 'creator', label: 'Creator', icon: Camera },

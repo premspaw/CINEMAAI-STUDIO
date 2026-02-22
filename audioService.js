@@ -1,5 +1,4 @@
 import dotenv from 'dotenv';
-import fetch from 'node-fetch';
 dotenv.config();
 
 const API_KEY = process.env.GOOGLE_API_KEY || process.env.API_KEY;
@@ -29,14 +28,17 @@ export const synthesizeSpeech = async (text, voiceId = 'en-US-Journey-F') => {
 
         const data = await response.json();
         if (data.audioContent) {
-            return data.audioContent; // Base64 string
+            return { success: true, audioContent: data.audioContent };
         } else {
             console.error("TTS API Error:", JSON.stringify(data));
-            return null;
+            return {
+                success: false,
+                error: data.error?.message || "Check if Cloud Text-to-Speech API is enabled in Google Cloud Console."
+            };
         }
     } catch (err) {
         console.error("TTS Synthesis Failed:", err);
-        return null;
+        return { success: false, error: err.message };
     }
 };
 
@@ -63,13 +65,21 @@ export const transcribeSpeech = async (audioContent) => {
         });
 
         const data = await response.json();
+        if (data.error) {
+            console.error("STT API Error:", JSON.stringify(data));
+            return {
+                success: false,
+                error: data.error.message || "Check if Cloud Speech-to-Text API is enabled."
+            };
+        }
+
         const transcription = data.results
             ?.map(result => result.alternatives[0].transcript)
             .join('\n');
 
-        return transcription;
+        return { success: true, transcription };
     } catch (err) {
         console.error("STT Transcription Failed:", err);
-        return null;
+        return { success: false, error: err.message };
     }
 };
