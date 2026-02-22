@@ -153,6 +153,14 @@ export function Home({ setActiveTab }) {
 
     return (
         <div className="min-h-screen bg-[radial-gradient(circle_at_15%_15%,rgba(190,242,100,0.12),transparent_35%),radial-gradient(circle_at_85%_10%,rgba(0,242,255,0.12),transparent_35%),#020617] text-white pb-20 font-mono selection:bg-[#bef264] selection:text-black">
+            <div className="px-6 lg:px-12 pt-6">
+                <div className="max-w-screen-2xl mx-auto">
+                    <div className="inline-flex items-center gap-3 rounded-full border border-fuchsia-400/40 bg-fuchsia-500/15 px-5 py-2 text-[11px] font-black uppercase tracking-[0.25em] text-fuchsia-100 shadow-[0_0_40px_rgba(217,70,239,0.25)]">
+                        Home UI Revamp Live
+                        <span className="rounded-full bg-fuchsia-200/20 px-2 py-1 text-[9px] tracking-[0.2em]">v2</span>
+                    </div>
+                </div>
+            </div>
             {/* HERO ACTION HEADER */}
             <header className="pt-32 pb-12 px-6 lg:px-12 relative overflow-hidden">
                 {/* Background Glows (Anti-Gravity) */}
