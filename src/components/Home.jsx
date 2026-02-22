@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../lib/supabase';
 import {
@@ -17,14 +17,14 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '../store';
 
-const API = 'http://localhost:3001';
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').trim();
 
 const CATEGORIES = [
-    { id: 'all', label: 'ALL' },
-    { id: 'characters', label: 'MY CHARACTERS' },
-    { id: 'cinematic', label: 'CINEMATIC REELS' },
-    { id: 'lifestyle', label: 'LIFESTYLE SHOTS' },
-    { id: 'commercial', label: 'COMMERCIALS' }
+    { id: 'all', label: 'ALL PROJECTS' },
+    { id: 'characters', label: 'CHARACTER LAB' },
+    { id: 'cinematic', label: 'CINEMA CUTS' },
+    { id: 'lifestyle', label: 'LIFESTYLE ADS' },
+    { id: 'commercial', label: 'BRAND SPOTS' }
 ];
 
 export function Home({ setActiveTab }) {
@@ -32,6 +32,9 @@ export function Home({ setActiveTab }) {
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
+    const [apiOffline, setApiOffline] = useState(false);
+    const didInitFetch = useRef(false);
+    const hasLoggedProxyIssue = useRef(false);
 
     const fetchMedia = async () => {
         console.log("Home: fetchMedia starting [PROXY_SERVER_MODE]...");
@@ -42,20 +45,30 @@ export function Home({ setActiveTab }) {
 
             // 1. Fetch Assets via Proxy
             try {
-                const assetResp = await fetch(`${API}/api/list-assets`);
+                const assetResp = await fetch(`${API_BASE}/api/list-assets`);
+                if (!assetResp.ok) throw new Error(`Assets request failed: ${assetResp.status}`);
                 const assetData = await assetResp.json();
                 dbImages = assetData.images || [];
             } catch (e) {
-                console.error("Home: Proxy Assets Fetch Error", e);
+                if (!hasLoggedProxyIssue.current) {
+                    console.warn('Home: API unreachable, using fallback data source. Start `npm run server` for live API data.');
+                    hasLoggedProxyIssue.current = true;
+                }
+                setApiOffline(true);
             }
 
             // 2. Fetch Characters via Proxy
             try {
-                const charResp = await fetch(`${API}/api/list-characters`);
+                const charResp = await fetch(`${API_BASE}/api/list-characters`);
+                if (!charResp.ok) throw new Error(`Characters request failed: ${charResp.status}`);
                 const charData = await charResp.json();
                 dbCharacters = charData.characters || [];
             } catch (e) {
-                console.error("Home: Proxy Characters Fetch Error", e);
+                if (!hasLoggedProxyIssue.current) {
+                    console.warn('Home: API unreachable, using fallback data source. Start `npm run server` for live API data.');
+                    hasLoggedProxyIssue.current = true;
+                }
+                setApiOffline(true);
             }
 
             // If proxy failed or returned nothing, and we have direct access (rare if DNS failing),
@@ -103,7 +116,6 @@ export function Home({ setActiveTab }) {
             );
 
             setMedia(merged);
-            console.log("Home: Media state updated via Proxy.");
         } catch (e) {
             console.error("Home: Critical Fetch Error", e);
             const mockMedia = Array.from({ length: 12 }).map((_, i) => ({
@@ -123,6 +135,8 @@ export function Home({ setActiveTab }) {
     };
 
     useEffect(() => {
+        if (didInitFetch.current) return;
+        didInitFetch.current = true;
         fetchMedia();
     }, []);
 
@@ -131,8 +145,14 @@ export function Home({ setActiveTab }) {
         (m.name.toLowerCase().includes(searchQuery.toLowerCase()))
     );
 
+    const stats = [
+        { label: 'Projects', value: media.length || 0 },
+        { label: 'Characters', value: media.filter((m) => m.isCharacter).length },
+        { label: 'Videos', value: media.filter((m) => m.type === 'video').length },
+    ];
+
     return (
-        <div className="min-h-screen bg-slate-950 text-white pb-20 font-mono selection:bg-[#bef264] selection:text-black">
+        <div className="min-h-screen bg-[radial-gradient(circle_at_15%_15%,rgba(190,242,100,0.12),transparent_35%),radial-gradient(circle_at_85%_10%,rgba(0,242,255,0.12),transparent_35%),#020617] text-white pb-20 font-mono selection:bg-[#bef264] selection:text-black">
             {/* HERO ACTION HEADER */}
             <header className="pt-32 pb-12 px-6 lg:px-12 relative overflow-hidden">
                 {/* Background Glows (Anti-Gravity) */}
@@ -143,11 +163,14 @@ export function Home({ setActiveTab }) {
                     <div className="space-y-4">
                         <div className="flex items-center gap-3">
                             <div className="w-1.5 h-6 bg-[#bef264] shadow-[0_0_20px_#bef264]" />
-                            <h2 className="text-[10px] font-black tracking-[0.5em] text-[#bef264] uppercase animate-pulse">Neural_Global_Archive // v3.1</h2>
+                            <h2 className="text-[10px] font-black tracking-[0.5em] text-[#bef264] uppercase animate-pulse">Creator Orbit // Home</h2>
                         </div>
                         <h1 className="text-7xl md:text-9xl font-black italic tracking-tighter leading-[0.85] uppercase">
-                            Global <br /> <span className="text-transparent border-t-2 border-b-2 border-white/5 px-4 bg-clip-text bg-gradient-to-r from-white via-white/40 to-white/10">Archive</span>
+                            AI Cinema <br /> <span className="text-transparent border-t-2 border-b-2 border-white/5 px-4 bg-clip-text bg-gradient-to-r from-[#bef264] via-white to-[#00f2ff]">Dashboard</span>
                         </h1>
+                        <p className="max-w-xl text-white/60 text-sm md:text-base tracking-wide">
+                            Your creative command center for storyboards, product shots, and cinematic social campaigns.
+                        </p>
                     </div>
 
                     <div className="flex flex-col items-end gap-6">
@@ -159,13 +182,38 @@ export function Home({ setActiveTab }) {
                             <div className="relative flex items-center gap-4">
                                 <Plus size={24} strokeWidth={4} className="group-hover:rotate-90 transition-transform duration-500" />
                                 <span className="text-xs font-black uppercase tracking-[0.25em] relative block">
-                                    [ INITIALIZE NEW CONSTRUCT ]
+                                    [ CREATE NEW SCENE ]
                                 </span>
                             </div>
                         </button>
                     </div>
                 </div>
             </header>
+
+            <section className="px-6 lg:px-12 pb-8">
+                <div className="max-w-screen-2xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {stats.map((card) => (
+                        <div
+                            key={card.label}
+                            className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl px-6 py-5 shadow-[0_15px_45px_rgba(0,0,0,0.35)]"
+                        >
+                            <p className="text-[10px] uppercase tracking-[0.3em] text-white/50">{card.label}</p>
+                            <p className="text-4xl font-black mt-2 bg-gradient-to-r from-[#bef264] via-white to-[#00f2ff] bg-clip-text text-transparent">
+                                {card.value}
+                            </p>
+                        </div>
+                    ))}
+                </div>
+            </section>
+
+
+            {apiOffline && (
+                <section className="px-6 lg:px-12 pb-4">
+                    <div className="max-w-screen-2xl mx-auto rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-[11px] tracking-wide text-amber-100">
+                        API server is offline. Run <span className="font-black">npm run server</span> to enable live assets from localhost:3001.
+                    </div>
+                </section>
+            )}
 
             {/* CATEGORY FILTERS & SEARCH */}
             <div className="sticky top-20 z-40 px-6 lg:px-12 py-8 pointer-events-none">
@@ -185,7 +233,7 @@ export function Home({ setActiveTab }) {
                     <div className="relative group">
                         <input
                             type="text"
-                            placeholder="QUERY_ARCHIVE..."
+                            placeholder="SEARCH SHOTS, CHARACTERS, CAMPAIGNS..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             className="bg-black/60 backdrop-blur-2xl border border-white/10 rounded-full px-8 py-3 text-[10px] font-black uppercase tracking-widest outline-none focus:border-[#bef264] w-56 focus:w-80 transition-all surface-glass"
@@ -200,7 +248,7 @@ export function Home({ setActiveTab }) {
                 {loading ? (
                     <div className="h-[50vh] flex flex-col items-center justify-center gap-8">
                         <div className="w-20 h-20 border-2 border-[#bef264]/10 border-t-[#bef264] rounded-full animate-spin shadow-[0_0_40px_rgba(190,242,100,0.2)]" />
-                        <span className="text-[11px] uppercase font-black tracking-[0.5em] text-[#bef264] animate-pulse">Syncing_Neural_Frequencies...</span>
+                        <span className="text-[11px] uppercase font-black tracking-[0.5em] text-[#bef264] animate-pulse">Loading_Your_Creative_Universe...</span>
                     </div>
                 ) : filteredMedia.length === 0 ? (
                     /* EMPTY STATE */
@@ -218,14 +266,14 @@ export function Home({ setActiveTab }) {
                             <div className="absolute inset-0 blur-[60px] bg-[#bef264]/10 rounded-full animate-pulse" />
                         </div>
                         <div className="space-y-3">
-                            <h3 className="text-3xl font-black uppercase italic tracking-tighter text-white/80">Vault_Uninitialized</h3>
-                            <p className="text-white/20 text-[11px] tracking-[0.3em] uppercase">No active identities or assets detected in primary sector.</p>
+                            <h3 className="text-3xl font-black uppercase italic tracking-tighter text-white/80">No Projects Yet</h3>
+                            <p className="text-white/20 text-[11px] tracking-[0.3em] uppercase">Start with a scene, import references, and build your visual campaign in minutes.</p>
                         </div>
                         <button
                             onClick={() => setActiveTab('creator')}
                             className="bg-[#bef264]/5 border border-[#bef264]/20 px-10 py-4 rounded-full text-[11px] font-black uppercase tracking-widest hover:bg-[#bef264] hover:text-black transition-all shadow-[0_0_40px_rgba(190,242,100,0.1)]"
                         >
-                            EXECUTE_FIRST_INITIALIZER
+                            CREATE YOUR FIRST PROJECT
                         </button>
                     </div>
                 ) : (
