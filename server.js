@@ -147,6 +147,36 @@ app.post('/api/influencer/semantic-search', async (req, res) => {
     }
 });
 
+// --- DIRECTOR PHASE 6: RESEARCH & THINKING ---
+
+// Research Agent (Google Search)
+app.post('/api/director/research', async (req, res) => {
+    try {
+        const { query } = req.body;
+        if (!query) throw new Error('No query provided');
+        console.log(`[PHASE 6] Research Agent conducting data-mining for: "${query}"`);
+        const result = await geminiService.researchProductionContext(query);
+        res.json(result);
+    } catch (error) {
+        console.error('Research Agent Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Thinking Mode Sequence Generation
+app.post('/api/director/thinking-sequence', async (req, res) => {
+    try {
+        const { narrative, bible } = req.body;
+        if (!narrative) throw new Error('No narrative provided');
+        console.log(`[PHASE 6] Thinking Mode engaged for narrative arc.`);
+        const result = await geminiService.generateThinkerSequence(narrative, bible);
+        res.json(result);
+    } catch (error) {
+        console.error('Thinking Mode Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Initialize Replicate
 const replicate = new Replicate({
     auth: process.env.REPLICATE_API_TOKEN,

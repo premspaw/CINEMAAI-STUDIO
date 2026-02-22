@@ -614,6 +614,80 @@ export const generateAmbientSFX = async (description) => {
     return "https://example.com/sfx_track.wav";
 };
 
+/**
+ * RESEARCH AGENT: Connects to real-time Google Search to ground the production.
+ * Uses gemini-2.0-flash with search tools.
+ */
+export const researchProductionContext = async (query) => {
+    return withRetry(async () => {
+        try {
+            const ai = getAI();
+            // Using 2.0-flash for real-time search capabilities
+            const model = ai.models.get("gemini-2.0-flash");
+
+            const prompt = `You are a Production Researcher. Conduct deep research on: "${query}". 
+            Identify period-accurate details, atmospheric references (lighting/weather), 
+            and visual costume/architectural specifications. 
+            Cite your findings and provide a summary for the Cinematography Director.`;
+
+            const response = await model.generateContent({
+                contents: [{ role: "user", parts: [{ text: prompt }] }],
+                tools: [{ googleSearch: {} }] // SDK uses camelCase for tools usually
+            });
+
+            return {
+                research: response.text(),
+                grounding: response.candidates?.[0]?.groundingMetadata || null
+            };
+        } catch (err) {
+            console.error("Research Agent failed:", err);
+            return { research: `Search link down. Using internal knowledge for: ${query}`, grounding: null };
+        }
+    });
+};
+
+/**
+ * THINKING MODE: Handles complex script decomposition using reasoning models.
+ * Uses gemini-2.0-flash-thinking-exp.
+ */
+export const generateThinkerSequence = async (narrative, bible = null) => {
+    return withRetry(async () => {
+        try {
+            const ai = getAI();
+            const bibleContext = formatBibleContext(bible);
+            const model = ai.models.get("gemini-2.0-flash-thinking-exp");
+
+            const prompt = `${bibleContext} Narrative Arc: "${narrative}". 
+            You are a Master Director in 'Thinking Mode'. Reason through the complexity of this scene. 
+            Decompose this narrative into a high-fidelity cinematic sequence of production nodes. 
+            
+            Return a JSON object with:
+            {
+              "reasoning": "Explain your creative decisions and directorial choices here.",
+              "nodes": [
+                { "id": "char_1", "type": "influencer", "label": "Character Name", "description": "Visual character description" },
+                { "id": "cam_1", "type": "camera", "label": "CAMERA_ORCH", "movement": "ZOOM_IN", "connectTo": "char_1" },
+                { "id": "light_1", "type": "lighting", "label": "NEON_ATMOS", "atmosphere": "CYBERPUNK", "connectTo": "cam_1" },
+                { "id": "diag_1", "type": "dialogue", "label": "VOICE_TRACK", "script": "...", "connectTo": "light_1" },
+                { "id": "sfx_1", "type": "sfx", "label": "AUDIO_ENGINE", "description": "Soundscape details", "connectTo": "diag_1" },
+                { "id": "video_1", "type": "video", "label": "MASTER_EXPORT", "connectTo": "sfx_1" }
+              ]
+            }
+            Ensure the sequence is logically connected. Max 8 nodes. Reason deeply about the pacing and tone.`;
+
+            const response = await model.generateContent(prompt);
+            const text = response.text();
+
+            // Clean markdown if AI returns it
+            const cleanJson = text.includes('```json') ? text.split('```json')[1].split('```')[0] : text;
+            return JSON.parse(cleanJson);
+        } catch (err) {
+            console.error("Thinking Mode failed:", err);
+            return generateDirectorSequence(narrative, bible); // fallback
+        }
+    });
+};
+
 export const generateDirectorSequence = async (narrative, bible = null) => {
     try {
         const ai = getAI();
